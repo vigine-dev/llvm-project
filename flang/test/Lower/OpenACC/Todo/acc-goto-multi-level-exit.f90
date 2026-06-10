@@ -41,4 +41,4 @@ subroutine nested_loop_exit(A, B, N)
 200 continue
 end subroutine
 
-! LOOP: not yet implemented: GOTO exiting OpenACC region
+! LOOP: not yet implemented: unstructured do loop in acc loop construct

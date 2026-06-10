@@ -1,4 +1,4 @@
-! RUN: bbc -fopenacc -emit-hlfir %s -o - | FileCheck %s
+! RUN: %not_todo_cmd bbc -fopenacc -emit-hlfir %s -o - 2>&1 | FileCheck %s
 
 subroutine sub1(x, a)
   real :: x(200)
@@ -13,29 +13,35 @@ subroutine sub1(x, a)
   i = 2
 end
 
-! CHECK-LABEL: func.func @_QPsub1
-! CHECK: %[[A:.*]]:2 = hlfir.declare %arg1 dummy_scope %{{[0-9]+}} arg {{[0-9]+}} {uniq_name = "_QFsub1Ea"} : (!fir.ref<i32>, !fir.dscope) -> (!fir.ref<i32>, !fir.ref<i32>)
-! CHECK: %[[I:.*]]:2 = hlfir.declare %{{[0-9]+}} {uniq_name = "_QFsub1Ei"} : (!fir.ref<i32>) -> (!fir.ref<i32>, !fir.ref<i32>)
-! CHECK: %[[EXIT_COND:.*]] = acc.loop
-! CHECK:   %[[I:.*]]:2 = hlfir.declare %{{[0-9]+}} {uniq_name = "_QFsub1Ei"} : (!fir.ref<i32>) -> (!fir.ref<i32>, !fir.ref<i32>)
-! CHECK: ^bb{{.*}}:
-! CHECK: ^bb{{.*}}:
-! CHECK:   %[[LOAD_I:.*]] = fir.load %[[I]]#0 : !fir.ref<i32>
-! CHECK:   %[[LOAD_I:.*]] = fir.load %[[I]]#0 : !fir.ref<i32>
-! CHECK:   %[[LOAD_A:.*]] = fir.load %[[A]]#0 : !fir.ref<i32>
-! CHECK:   %[[CMP:.*]] = arith.cmpi eq, %[[LOAD_I]], %[[LOAD_A]] : i32
-! CHECK:   cf.cond_br %[[CMP]], ^[[EARLY_RET:.*]], ^[[NO_RET:.*]]
-! CHECK: ^[[EARLY_RET]]:
-! CHECK:   acc.yield %true : i1
-! CHECK: ^[[NO_RET]]:
-! CHECK:   cf.br ^bb{{.*}}
-! CHECK: ^bb{{.*}}:
-! CHECK:   acc.yield %false : i1
-! CHECK: }(i1)
-! CHECK: cf.cond_br %[[EXIT_COND]], ^[[EXIT_BLOCK:.*]], ^[[CONTINUE_BLOCK:.*]]
-! CHECK: ^[[CONTINUE_BLOCK]]:
-! CHECK:   hlfir.assign
-! CHECK:   cf.br ^[[EXIT_BLOCK]]
-! CHECK: ^[[EXIT_BLOCK]]:
-! CHECK:   return
-! CHECK: }
+! CHECK: not yet implemented: unstructured do loop in acc loop construct
+
+!! TODO: For now this is disabled because we emit an NYI if an unstructured loop is
+!! associated with an OpenACC directive.
+!!
+!! xCHECK-LABEL: func.func @_QPsub1
+!! xCHECK: %[[A:.*]]:2 = hlfir.declare %arg1 dummy_scope %{{[0-9]+}} arg {{[0-9]+}} {uniq_name = "_QFsub1Ea"} : (!fir.ref<i32>, !fir.dscope) -> (!fir.ref<i32>, !fir.ref<i32>)
+!! xCHECK: %[[I:.*]]:2 = hlfir.declare %{{[0-9]+}} {uniq_name = "_QFsub1Ei"} : (!fir.ref<i32>) -> (!fir.ref<i32>, !fir.ref<i32>)
+!! xCHECK: %[[EXIT_COND:.*]] = acc.loop
+!! xCHECK:   %[[I:.*]]:2 = hlfir.declare %{{[0-9]+}} {uniq_name = "_QFsub1Ei"} : (!fir.ref<i32>) -> (!fir.ref<i32>, !fir.ref<i32>)
+!! xCHECK: ^bb{{.*}}:
+!! xCHECK: ^bb{{.*}}:
+!! xCHECK:   %[[LOAD_I:.*]] = fir.load %[[I]]#0 : !fir.ref<i32>
+!! xCHECK:   %[[LOAD_I:.*]] = fir.load %[[I]]#0 : !fir.ref<i32>
+!! xCHECK:   %[[LOAD_A:.*]] = fir.load %[[A]]#0 : !fir.ref<i32>
+!! xCHECK:   %[[CMP:.*]] = arith.cmpi eq, %[[LOAD_I]], %[[LOAD_A]] : i32
+!! xCHECK:   cf.cond_br %[[CMP]], ^[[EARLY_RET:.*]], ^[[NO_RET:.*]]
+!! xCHECK: ^[[EARLY_RET]]:
+!! xCHECK:   acc.yield %true : i1
+!! xCHECK: ^[[NO_RET]]:
+!! xCHECK:   cf.br ^bb{{.*}}
+!! xCHECK: ^bb{{.*}}:
+!! xCHECK:   acc.yield %false : i1
+!! xCHECK: }(i1)
+!! xCHECK: cf.cond_br %[[EXIT_COND]], ^[[EXIT_BLOCK:.*]], ^[[CONTINUE_BLOCK:.*]]
+!! xCHECK: ^[[CONTINUE_BLOCK]]:
+!! xCHECK:   hlfir.assign
+!! xCHECK:   cf.br ^[[EXIT_BLOCK]]
+!! xCHECK: ^[[EXIT_BLOCK]]:
+!! xCHECK:   return
+!! xCHECK: }
+

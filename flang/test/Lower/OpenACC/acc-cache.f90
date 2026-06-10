@@ -265,58 +265,62 @@ subroutine test_cache_2d_loop_vars()
 ! CHECK-NEXT: }
 end subroutine
 
-! CHECK-LABEL: func.func @_QPtest_cache_single_element()
-! Test cache with single element access: b(i)
-! This test includes an EXIT statement to verify cache scope with early loop exit
-subroutine test_cache_single_element()
-  integer, parameter :: n = 10
-  real, dimension(n) :: a, b
-  integer :: i
-
-  !$acc loop
-  do i = 1, n
-    !$acc cache(b(i))
-    a(i) = b(i)
-    if (a(i) > 100.0) exit
-  end do
-
-! Unstructured loop with EXIT: acc.loop becomes unstructured with cf.br/cf.cond_br
-! CHECK: acc.loop private({{.*}}) {
-! The privatized iterator is declared
-! CHECK: %[[I_DECL:.*]]:2 = hlfir.declare %{{.*}} {uniq_name = "_QFtest_cache_single_elementEi"}
-! Loop control is done with cf.br/cf.cond_br in unstructured form
-! CHECK: cf.br ^[[HEADER:.*]]
-! CHECK: ^[[HEADER]]:
-! CHECK: cf.cond_br %{{.*}}, ^[[BODY:.*]], ^[[EXIT:.*]]
-! CHECK: ^[[BODY]]:
-! CHECK: %[[C1:.*]] = arith.constant 1 : index
-! Load iterator i for bounds computation
-! CHECK: %[[I_LOAD:.*]] = fir.load %[[I_DECL]]#0 : !fir.ref<i32>
-! CHECK: %[[I_CVT1:.*]] = fir.convert %[[I_LOAD]] : (i32) -> i64
-! CHECK: %[[I_IDX:.*]] = fir.convert %[[I_CVT1]] : (i64) -> index
-! Compute lowerbound = i - 1 (single element: upperbound = lowerbound)
-! CHECK: %[[LB:.*]] = arith.subi %[[I_IDX]], %[[C1]] : index
-! CHECK: %[[BOUND:.*]] = acc.bounds lowerbound(%[[LB]] : index) upperbound(%[[LB]] : index) extent(%[[C1]] : index) stride(%[[C1]] : index) startIdx(%[[C1]] : index)
-! CHECK: %[[CACHE:.*]] = acc.cache varPtr(%{{.*}} : !fir.ref<!fir.array<10xf32>>) bounds(%[[BOUND]]) -> !fir.ref<!fir.array<10xf32>> {{{.*}}name = "b
-! CHECK: %[[DECL:.*]]:2 = hlfir.declare %[[CACHE]](%{{.*}}) {uniq_name = "_QFtest_cache_single_elementEb"}
-! Loop body uses the cached single element
-! CHECK: hlfir.designate %[[DECL]]#0
-! CHECK: fir.load
-! CHECK: hlfir.assign
-! Unstructured control flow: EXIT generates conditional branch
-! CHECK: %[[CMP:.*]] = arith.cmpf ogt, %{{.*}}, %{{.*}} : f32
-! CHECK: cf.cond_br %[[CMP]], ^[[EXIT_BB:.*]], ^[[CONT_BB:.*]]
-! CHECK: ^[[EXIT_BB]]:
-! Early exit path: branch to acc.yield
-! CHECK: cf.br ^[[YIELD:.*]]
-! CHECK: ^[[CONT_BB]]:
-! Normal path: update iterator and loop back
-! CHECK: cf.br ^[[HEADER]]
-! CHECK: ^[[YIELD]]:
-! Scope termination: acc.yield marks end of cache scope
-! CHECK: acc.yield
-! CHECK-NEXT: } attributes {{{.*}}unstructured}
-end subroutine
+!! TODO: For now this is disabled because we emit an NYI if an unstructured loop is
+!! associated with an OpenACC directive.
+!!
+!! xCHECK-LABEL: func.func @_QPtest_cache_single_element()
+!! Test cache with single element access: b(i)
+!! This test includes an EXIT statement to verify cache scope with early loop exit
+!subroutine test_cache_single_element()
+!  integer, parameter :: n = 10
+!  real, dimension(n) :: a, b
+!  integer :: i
+!
+!  !$acc loop
+!  do i = 1, n
+!    !$acc cache(b(i))
+!    a(i) = b(i)
+!    if (a(i) > 100.0) exit
+!  end do
+!
+!! Unstructured loop with EXIT: acc.loop becomes unstructured with cf.br/cf.cond_br
+!! xCHECK: acc.loop private({{.*}}) {
+!! The privatized iterator is declared
+!! xCHECK: %[[I_DECL:.*]]:2 = hlfir.declare %{{.*}} {uniq_name = "_QFtest_cache_single_elementEi"}
+!! Loop control is done with cf.br/cf.cond_br in unstructured form
+!! xCHECK: cf.br ^[[HEADER:.*]]
+!! xCHECK: ^[[HEADER]]:
+!! xCHECK: cf.cond_br %{{.*}}, ^[[BODY:.*]], ^[[EXIT:.*]]
+!! xCHECK: ^[[BODY]]:
+!! xCHECK: %[[C1:.*]] = arith.constant 1 : index
+!! Load iterator i for bounds computation
+!! xCHECK: %[[I_LOAD:.*]] = fir.load %[[I_DECL]]#0 : !fir.ref<i32>
+!! xCHECK: %[[I_CVT1:.*]] = fir.convert %[[I_LOAD]] : (i32) -> i64
+!! xCHECK: %[[I_IDX:.*]] = fir.convert %[[I_CVT1]] : (i64) -> index
+!! Compute lowerbound = i - 1 (single element: upperbound = lowerbound)
+!! xCHECK: %[[LB:.*]] = arith.subi %[[I_IDX]], %[[C1]] : index
+!! xCHECK: %[[BOUND:.*]] = acc.bounds lowerbound(%[[LB]] : index) upperbound(%[[LB]] : index) extent(%[[C1]] : index) stride(%[[C1]] : index) startIdx(%[[C1]] : index)
+!! xCHECK: %[[CACHE:.*]] = acc.cache varPtr(%{{.*}} : !fir.ref<!fir.array<10xf32>>) bounds(%[[BOUND]]) -> !fir.ref<!fir.array<10xf32>> {{{.*}}name = "b
+!! xCHECK: %[[DECL:.*]]:2 = hlfir.declare %[[CACHE]](%{{.*}}) {uniq_name = "_QFtest_cache_single_elementEb"}
+!! Loop body uses the cached single element
+!! xCHECK: hlfir.designate %[[DECL]]#0
+!! xCHECK: fir.load
+!! xCHECK: hlfir.assign
+!! Unstructured control flow: EXIT generates conditional branch
+!! xCHECK: %[[CMP:.*]] = arith.cmpf ogt, %{{.*}}, %{{.*}} : f32
+!! xCHECK: cf.cond_br %[[CMP]], ^[[EXIT_BB:.*]], ^[[CONT_BB:.*]]
+!! xCHECK: ^[[EXIT_BB]]:
+!! Early exit path: branch to acc.yield
+!! xCHECK: cf.br ^[[YIELD:.*]]
+!! xCHECK: ^[[CONT_BB]]:
+!! Normal path: update iterator and loop back
+!! xCHECK: cf.br ^[[HEADER]]
+!! xCHECK: ^[[YIELD]]:
+!! Scope termination: acc.yield marks end of cache scope
+!! xCHECK: acc.yield
+!! xCHECK-NEXT: } attributes {{{.*}}unstructured}
+!end subroutine
+!
 
 ! CHECK-LABEL: func.func @_QPtest_cache_mixed_bounds()
 ! Test cache with mixed constant and variable bounds: b(1:i)
@@ -365,69 +369,72 @@ subroutine test_cache_mixed_bounds()
 ! CHECK-NEXT: }
 end subroutine
 
-! CHECK-LABEL: func.func @_QPtest_cache_nonunit_lb()
-! Test cache with array that has non-1 lower bound: arr(10:20), cache(arr(15))
-! This test includes SELECT CASE for multi-way unstructured control flow
-subroutine test_cache_nonunit_lb()
-  integer :: arr(10:20)
-  integer :: i
-
-  !$acc loop
-  do i = 10, 20
-    !$acc cache(arr(15))
-    select case (mod(i, 3))
-    case (0)
-      arr(i) = i * 2
-    case (1)
-      arr(i) = i * 3
-    case default
-      arr(i) = i
-    end select
-  end do
-
-! For arr(10:20), startIdx = 10, element 15 has lowerbound = 15 - 10 = 5
-! CHECK: %[[C10:.*]] = arith.constant 10 : index
-! Unstructured loop with SELECT CASE: acc.loop becomes unstructured
-! CHECK: acc.loop private({{.*}}) {
-! CHECK: cf.br ^[[HEADER:.*]]
-! CHECK: ^[[HEADER]]:
-! CHECK: cf.cond_br %{{.*}}, ^[[BODY:.*]], ^[[EXIT:.*]]
-! CHECK: ^[[BODY]]:
-! Compute lowerbound = 15 - startIdx = 15 - 10 = 5
-! CHECK: %[[C1:.*]] = arith.constant 1 : index
-! CHECK: %[[C15:.*]] = arith.constant 15 : index
-! CHECK: %[[LB:.*]] = arith.subi %[[C15]], %{{.*}} : index
-! Single element: upperbound equals lowerbound, startIdx = 10
-! CHECK: %[[BOUND:.*]] = acc.bounds lowerbound(%[[LB]] : index) upperbound(%[[LB]] : index) extent(%[[C1]] : index) stride(%{{.*}} : index) startIdx(%{{.*}} : index) {strideInBytes = true}
-! For non-unit lower bound arrays, acc.cache uses the box type from hlfir.declare
-! CHECK: %[[CACHE:.*]] = acc.cache var(%{{.*}} : !fir.box<!fir.array<11xi32>>) bounds(%[[BOUND]]) -> !fir.box<!fir.array<11xi32>> {{{.*}}name = "arr
-! CHECK: %[[DECL:.*]]:2 = hlfir.declare %[[CACHE]](%{{.*}}) {uniq_name = "_QFtest_cache_nonunit_lbEarr"}
-! Unstructured control flow: SELECT CASE generates fir.select_case
-! CHECK: %[[MOD:.*]] = arith.remsi %{{.*}}, %{{.*}} : i32
-! CHECK: fir.select_case %[[MOD]] : i32 [#fir.point, %{{.*}}, ^[[CASE0:.*]], #fir.point, %{{.*}}, ^[[CASE1:.*]], unit, ^[[DEFAULT:.*]]]
-! Case 0: i * 2
-! CHECK: ^[[CASE0]]:
-! CHECK: hlfir.designate %[[DECL]]#0
-! CHECK: hlfir.assign
-! CHECK: cf.br ^[[MERGE:.*]]
-! Case 1: i * 3
-! CHECK: ^[[CASE1]]:
-! CHECK: hlfir.designate %[[DECL]]#0
-! CHECK: hlfir.assign
-! CHECK: cf.br ^[[MERGE]]
-! Default case: i
-! CHECK: ^[[DEFAULT]]:
-! CHECK: hlfir.designate %[[DECL]]#0
-! CHECK: hlfir.assign
-! CHECK: cf.br ^[[MERGE]]
-! All SELECT CASE branches converge, then loop back or exit
-! CHECK: ^[[MERGE]]:
-! CHECK: cf.br ^[[HEADER]]
-! CHECK: ^[[EXIT]]:
-! Scope termination: acc.yield marks end of cache scope
-! CHECK: acc.yield
-! CHECK-NEXT: } attributes {{{.*}}unstructured}
-end subroutine
+!! TODO: For now this is disabled because we emit an NYI if an unstructured loop is
+!! associated with an OpenACC directive.
+!!
+!! xCHECK-LABEL: func.func @_QPtest_cache_nonunit_lb()
+!! Test cache with array that has non-1 lower bound: arr(10:20), cache(arr(15))
+!! This test includes SELECT CASE for multi-way unstructured control flow
+!subroutine test_cache_nonunit_lb()
+!  integer :: arr(10:20)
+!  integer :: i
+!
+!  !$acc loop
+!  do i = 10, 20
+!    !$acc cache(arr(15))
+!    select case (mod(i, 3))
+!    case (0)
+!      arr(i) = i * 2
+!    case (1)
+!      arr(i) = i * 3
+!    case default
+!      arr(i) = i
+!    end select
+!  end do
+!
+!! For arr(10:20), startIdx = 10, element 15 has lowerbound = 15 - 10 = 5
+!! xCHECK: %[[C10:.*]] = arith.constant 10 : index
+!! Unstructured loop with SELECT CASE: acc.loop becomes unstructured
+!! xCHECK: acc.loop private({{.*}}) {
+!! xCHECK: cf.br ^[[HEADER:.*]]
+!! xCHECK: ^[[HEADER]]:
+!! xCHECK: cf.cond_br %{{.*}}, ^[[BODY:.*]], ^[[EXIT:.*]]
+!! xCHECK: ^[[BODY]]:
+!! Compute lowerbound = 15 - startIdx = 15 - 10 = 5
+!! xCHECK: %[[C1:.*]] = arith.constant 1 : index
+!! xCHECK: %[[C15:.*]] = arith.constant 15 : index
+!! xCHECK: %[[LB:.*]] = arith.subi %[[C15]], %{{.*}} : index
+!! Single element: upperbound equals lowerbound, startIdx = 10
+!! xCHECK: %[[BOUND:.*]] = acc.bounds lowerbound(%[[LB]] : index) upperbound(%[[LB]] : index) extent(%[[C1]] : index) stride(%{{.*}} : index) startIdx(%{{.*}} : index) {strideInBytes = true}
+!! For non-unit lower bound arrays, acc.cache uses the box type from hlfir.declare
+!! xCHECK: %[[CACHE:.*]] = acc.cache var(%{{.*}} : !fir.box<!fir.array<11xi32>>) bounds(%[[BOUND]]) -> !fir.box<!fir.array<11xi32>> {{{.*}}name = "arr
+!! xCHECK: %[[DECL:.*]]:2 = hlfir.declare %[[CACHE]](%{{.*}}) {uniq_name = "_QFtest_cache_nonunit_lbEarr"}
+!! Unstructured control flow: SELECT CASE generates fir.select_case
+!! xCHECK: %[[MOD:.*]] = arith.remsi %{{.*}}, %{{.*}} : i32
+!! xCHECK: fir.select_case %[[MOD]] : i32 [#fir.point, %{{.*}}, ^[[CASE0:.*]], #fir.point, %{{.*}}, ^[[CASE1:.*]], unit, ^[[DEFAULT:.*]]]
+!! Case 0: i * 2
+!! xCHECK: ^[[CASE0]]:
+!! xCHECK: hlfir.designate %[[DECL]]#0
+!! xCHECK: hlfir.assign
+!! xCHECK: cf.br ^[[MERGE:.*]]
+!! Case 1: i * 3
+!! xCHECK: ^[[CASE1]]:
+!! xCHECK: hlfir.designate %[[DECL]]#0
+!! xCHECK: hlfir.assign
+!! xCHECK: cf.br ^[[MERGE]]
+!! Default case: i
+!! xCHECK: ^[[DEFAULT]]:
+!! xCHECK: hlfir.designate %[[DECL]]#0
+!! xCHECK: hlfir.assign
+!! xCHECK: cf.br ^[[MERGE]]
+!! All SELECT CASE branches converge, then loop back or exit
+!! xCHECK: ^[[MERGE]]:
+!! xCHECK: cf.br ^[[HEADER]]
+!! xCHECK: ^[[EXIT]]:
+!! Scope termination: acc.yield marks end of cache scope
+!! xCHECK: acc.yield
+!! xCHECK-NEXT: } attributes {{{.*}}unstructured}
+!end subroutine
 
 ! CHECK-LABEL: func.func @_QPtest_cache_use_after_region()
 ! CHECK: %[[B_VAR:.*]]:2 = hlfir.declare %{{.*}}(%{{.*}}) {uniq_name = "_QFtest_cache_use_after_regionEb"}

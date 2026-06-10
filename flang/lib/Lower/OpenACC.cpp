@@ -2379,6 +2379,10 @@ genACC(Fortran::lower::AbstractConverter &converter,
       std::get<Fortran::parser::AccClauseList>(beginLoopDirective.t);
   const auto &outerDoConstruct =
       std::get<std::optional<Fortran::parser::DoConstruct>>(loopConstruct.t);
+
+  if (outerDoConstruct.has_value() && eval.lowerAsUnstructured())
+    TODO(currentLocation, "unstructured do loop in acc loop construct");
+
   auto loopOp = createLoopOp(converter, currentLocation, semanticsContext,
                              stmtCtx, *outerDoConstruct, eval, accClauseList,
                              /*combinedConstructs=*/{});
@@ -3147,6 +3151,9 @@ genACC(Fortran::lower::AbstractConverter &converter,
   mlir::Location currentLocation =
       converter.genLocation(beginCombinedDirective.source);
   Fortran::lower::StatementContext stmtCtx;
+
+  if (outerDoConstruct.has_value() && eval.lowerAsUnstructured())
+    TODO(currentLocation, "unstructured do loop in combined acc construct");
 
   if (combinedDirective.v == llvm::acc::ACCD_kernels_loop) {
     createComputeOp<mlir::acc::KernelsOp>(
