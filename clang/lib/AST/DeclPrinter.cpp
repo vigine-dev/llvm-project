@@ -1225,36 +1225,46 @@ void DeclPrinter::printTemplateParameters(const TemplateParameterList *Params,
     Out << ' ';
 }
 
+// An argument pack stands in the list for the arguments it holds, as a
+// specialization is spelled: f<int, float>, not f<<int, float>>.
+static void printTemplateArgumentInList(raw_ostream &Out,
+                                        const TemplateArgument &Arg,
+                                        const PrintingPolicy &Policy,
+                                        bool IncludeType, bool &First) {
+  ArrayRef<TemplateArgument> Spelled(Arg);
+  if (Arg.getKind() == TemplateArgument::Pack)
+    Spelled = Arg.pack_elements();
+  for (const TemplateArgument &Element : Spelled) {
+    if (!First)
+      Out << ", ";
+    First = false;
+    Element.print(Policy, Out, IncludeType);
+  }
+}
+
 void DeclPrinter::printTemplateArguments(ArrayRef<TemplateArgument> Args,
                                          const TemplateParameterList *Params) {
   Out << "<";
-  for (size_t I = 0, E = Args.size(); I < E; ++I) {
-    if (I)
-      Out << ", ";
-    if (!Params)
-      Args[I].print(Policy, Out, /*IncludeType*/ true);
-    else
-      Args[I].print(Policy, Out,
-                    TemplateParameterList::shouldIncludeTypeForArgument(
-                        Policy, Params, I));
-  }
+  bool First = true;
+  for (size_t I = 0, E = Args.size(); I < E; ++I)
+    printTemplateArgumentInList(
+        Out, Args[I], Policy,
+        !Params || TemplateParameterList::shouldIncludeTypeForArgument(
+                       Policy, Params, I),
+        First);
   Out << ">";
 }
 
 void DeclPrinter::printTemplateArguments(ArrayRef<TemplateArgumentLoc> Args,
                                          const TemplateParameterList *Params) {
   Out << "<";
-  for (size_t I = 0, E = Args.size(); I < E; ++I) {
-    if (I)
-      Out << ", ";
-    if (!Params)
-      Args[I].getArgument().print(Policy, Out, /*IncludeType*/ true);
-    else
-      Args[I].getArgument().print(
-          Policy, Out,
-          TemplateParameterList::shouldIncludeTypeForArgument(Policy, Params,
-                                                              I));
-  }
+  bool First = true;
+  for (size_t I = 0, E = Args.size(); I < E; ++I)
+    printTemplateArgumentInList(
+        Out, Args[I].getArgument(), Policy,
+        !Params || TemplateParameterList::shouldIncludeTypeForArgument(
+                       Policy, Params, I),
+        First);
   Out << ">";
 }
 
