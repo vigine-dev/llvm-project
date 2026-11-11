@@ -19,12 +19,18 @@ BUILD_SHARED_LIBS = "OFF"
 [settings.macos]
 CMAKE_SHARED_LINKER_FLAGS = "-Wl,-dead_strip"
 CMAKE_OSX_SYSROOT = "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+LLVM_PARALLEL_LINK_JOBS = "1"
+LLVM_PARALLEL_COMPILE_JOBS = "7"
 
 [settings.windows]
 CMAKE_SHARED_LINKER_FLAGS = "/machine:x64"
+LLVM_PARALLEL_LINK_JOBS = "1"
+LLVM_PARALLEL_COMPILE_JOBS = "15"
 
 [settings.linux]
 CMAKE_SHARED_LINKER_FLAGS = "-Wl,--exclude-libs,ALL"
+LLVM_PARALLEL_LINK_JOBS = "1"
+LLVM_PARALLEL_COMPILE_JOBS = "3"
 
 # ---- macOS and Linux: the system compiler is /usr/bin/clang and /usr/bin/clang++ ----
 
@@ -99,6 +105,9 @@ variant = "release"
 systems = ["windows"]
 run = "cmake -E rm -rf build/stage1 build/libxml2-bootstrap"
 why = "Same as the posix cleanup: scaffolding goes only after the passport is written, so the passport records this as the last step."
+
+[[rule]]
+text = "Job limits are stated per system and reach both LLVM steps (llvm-stage1 and llvm-release) through {settings}: one link job everywhere, because a single LLVM link needs several gigabytes (clang and lld with LTO off still peak near 3 to 8 GB) and the machines are small (Ubuntu 3 GB RAM and 4 cores, macOS 8 GB and 8 cores, Windows 31 GB and 16 logical cores). Compile jobs are the cores minus one (macOS 7, Windows 15) except Ubuntu, where 3 is the cores minus one and also what 3 GB of RAM can hold; more would be killed by the memory limit."
 
 [[rule]]
 text = "The system compiler builds stage1; stage1 builds the release compiler; every other project is built with the release compiler. No third pass (owner, 11.11)."
