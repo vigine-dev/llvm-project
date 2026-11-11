@@ -1,0 +1,4 @@
+[submodule "external/libxml2"]
+	path = external/libxml2
+	url = https://github.com/vigine-dev/libxml2.git
+	branch = vigine/main
