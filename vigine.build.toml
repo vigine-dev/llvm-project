@@ -1,0 +1,125 @@
+[recipe]
+repo = "llvm-project"
+variants = ["release"]
+owns = ["libxml2"]
+
+[[dependency]]
+repo = "libxml2"
+path = "external/libxml2"
+branch = "vigine/main"
+commit = "de918d45e1b2276a28a4cd32bcf556bef65284e4"
+
+[settings.common]
+CMAKE_C_VISIBILITY_PRESET = "default"
+CMAKE_CXX_VISIBILITY_PRESET = "default"
+CMAKE_VISIBILITY_INLINES_HIDDEN = "ON"
+CMAKE_POSITION_INDEPENDENT_CODE = "ON"
+BUILD_SHARED_LIBS = "OFF"
+
+[settings.macos]
+CMAKE_SHARED_LINKER_FLAGS = "-Wl,-dead_strip"
+CMAKE_OSX_SYSROOT = "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+
+[settings.windows]
+CMAKE_SHARED_LINKER_FLAGS = "/machine:x64"
+
+[settings.linux]
+CMAKE_SHARED_LINKER_FLAGS = "-Wl,--exclude-libs,ALL"
+
+# ---- macOS and Linux: the system compiler is /usr/bin/clang and /usr/bin/clang++ ----
+
+[[step]]
+id = "libxml2-bootstrap"
+variant = "release"
+systems = ["macos", "linux"]
+run = "cmake -S external/libxml2 -B build/libxml2-bootstrap/obj -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=/usr/bin/clang -DCMAKE_CXX_COMPILER=/usr/bin/clang++ {settings} -DCMAKE_INSTALL_PREFIX={repo_root}/build/libxml2-bootstrap -DCMAKE_INSTALL_LIBDIR=lib -DLIBXML2_WITH_ICONV=OFF -DLIBXML2_WITH_ICU=OFF -DLIBXML2_WITH_LZMA=OFF -DLIBXML2_WITH_ZLIB=OFF -DLIBXML2_WITH_PYTHON=OFF -DLIBXML2_WITH_PROGRAMS=OFF -DLIBXML2_WITH_TESTS=OFF -DLIBXML2_WITH_MODULES=OFF && cmake --build build/libxml2-bootstrap/obj && cmake --install build/libxml2-bootstrap/obj"
+why = "Our libxml2 is built static by the system compiler first, because LLVM's own stage1 needs a libxml2 and must never take the system one. No python, iconv, lzma, zlib, ICU, modules, programs or tests: LLVM only parses XML in memory, and every extra library would be one more thing the stage1 compiler links."
+
+[[step]]
+id = "llvm-stage1"
+variant = "release"
+systems = ["macos", "linux"]
+run = "cmake -S llvm -B build/stage1 -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=/usr/bin/clang -DCMAKE_CXX_COMPILER=/usr/bin/clang++ {settings} \"-DLLVM_ENABLE_PROJECTS=clang;lld\" -DLLVM_TARGETS_TO_BUILD=host -DLLVM_ENABLE_ASSERTIONS=OFF -DLLVM_ENABLE_LIBXML2=FORCE_ON -DLIBXML2_INCLUDE_DIR={repo_root}/build/libxml2-bootstrap/include/libxml2 -DLIBXML2_LIBRARY={repo_root}/build/libxml2-bootstrap/lib/libxml2.a -DLLVM_ENABLE_ZLIB=OFF -DLLVM_ENABLE_ZSTD=OFF -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_EXAMPLES=OFF -DLLVM_INCLUDE_DOCS=OFF && cmake --build build/stage1 --target clang lld"
+why = "A minimal first compiler (clang and lld, host target only) built by the system compiler with the bootstrap libxml2. Only what the second pass needs is built; zlib and zstd are off so stage1 depends on nothing but libxml2."
+
+[[step]]
+id = "libxml2-ours"
+variant = "release"
+systems = ["macos", "linux"]
+run = "cmake -S external/libxml2 -B build/libxml2/obj -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER={repo_root}/build/stage1/bin/clang -DCMAKE_CXX_COMPILER={repo_root}/build/stage1/bin/clang++ {settings} -DCMAKE_INSTALL_PREFIX={repo_root}/build/libxml2 -DCMAKE_INSTALL_LIBDIR=lib -DLIBXML2_WITH_ICONV=OFF -DLIBXML2_WITH_ICU=OFF -DLIBXML2_WITH_LZMA=OFF -DLIBXML2_WITH_ZLIB=OFF -DLIBXML2_WITH_PYTHON=OFF -DLIBXML2_WITH_PROGRAMS=OFF -DLIBXML2_WITH_TESTS=OFF -DLIBXML2_WITH_MODULES=OFF && cmake --build build/libxml2/obj && cmake --install build/libxml2/obj"
+why = "The libxml2 the final compiler links is built by our own compiler (stage1), with the same options as the bootstrap one."
+
+[[step]]
+id = "llvm-release"
+variant = "release"
+systems = ["macos", "linux"]
+run = "cmake -S llvm -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER={repo_root}/build/stage1/bin/clang -DCMAKE_CXX_COMPILER={repo_root}/build/stage1/bin/clang++ {settings} \"-DLLVM_ENABLE_PROJECTS=clang;lld\" -DLLVM_TARGETS_TO_BUILD=host -DLLVM_ENABLE_ASSERTIONS=OFF -DLLVM_ENABLE_LIBXML2=FORCE_ON -DLIBXML2_INCLUDE_DIR={repo_root}/build/libxml2/include/libxml2 -DLIBXML2_LIBRARY={repo_root}/build/libxml2/lib/libxml2.a -DLLVM_ENABLE_ZLIB=ON -DLLVM_ENABLE_ZSTD=ON -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_EXAMPLES=OFF -DLLVM_INCLUDE_DOCS=OFF && cmake --build build/release"
+why = "The compiler: LLVM with the same projects (clang, lld) and target (host) as the previous build, built by stage1 with our libxml2. Linking uses the linker stage1's clang picks by default (the system one); no -fuse-ld is set. Every other project is built with this compiler."
+
+[[step]]
+id = "cleanup"
+variant = "release"
+systems = ["macos", "linux"]
+run = "cmake -E rm -rf build/stage1 build/libxml2-bootstrap"
+why = "Stage1 and the bootstrap libxml2 are scaffolding. They are removed only after the passport is written, so the passport records this as the last step and everything it proves was still on disk when it was measured."
+
+# ---- Windows: the system compiler is MSVC cl.exe (found through vcvars64.bat); stage1 is clang-cl with MSVC link.exe ----
+
+[[step]]
+id = "libxml2-bootstrap-windows"
+variant = "release"
+systems = ["windows"]
+run = "cmake -S external/libxml2 -B build/libxml2-bootstrap/obj -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=\"C:/Program Files/Microsoft Visual Studio/18/Insiders/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe\" -DCMAKE_CXX_COMPILER=\"C:/Program Files/Microsoft Visual Studio/18/Insiders/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe\" {settings} -DCMAKE_INSTALL_PREFIX={repo_root}/build/libxml2-bootstrap -DCMAKE_INSTALL_LIBDIR=lib -DLIBXML2_WITH_ICONV=OFF -DLIBXML2_WITH_ICU=OFF -DLIBXML2_WITH_LZMA=OFF -DLIBXML2_WITH_ZLIB=OFF -DLIBXML2_WITH_PYTHON=OFF -DLIBXML2_WITH_PROGRAMS=OFF -DLIBXML2_WITH_TESTS=OFF -DLIBXML2_WITH_MODULES=OFF && cmake --build build/libxml2-bootstrap/obj && cmake --install build/libxml2-bootstrap/obj"
+why = "Same as the posix bootstrap, with MSVC cl.exe (the Visual Studio environment comes from vcvars64.bat, which the build wrapper loads) as the system compiler; the static library is libxml2s.lib."
+
+[[step]]
+id = "llvm-stage1-windows"
+variant = "release"
+systems = ["windows"]
+run = "cmake -S llvm -B build/stage1 -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=\"C:/Program Files/Microsoft Visual Studio/18/Insiders/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe\" -DCMAKE_CXX_COMPILER=\"C:/Program Files/Microsoft Visual Studio/18/Insiders/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe\" {settings} \"-DLLVM_ENABLE_PROJECTS=clang;lld\" -DLLVM_TARGETS_TO_BUILD=host -DLLVM_ENABLE_ASSERTIONS=OFF -DLLVM_ENABLE_LIBXML2=FORCE_ON -DLIBXML2_INCLUDE_DIR={repo_root}/build/libxml2-bootstrap/include/libxml2 -DLIBXML2_LIBRARY={repo_root}/build/libxml2-bootstrap/lib/libxml2s.lib -DLLVM_ENABLE_ZLIB=OFF -DLLVM_ENABLE_ZSTD=OFF -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_EXAMPLES=OFF -DLLVM_INCLUDE_DOCS=OFF && cmake --build build/stage1 --target clang lld"
+why = "Same as the posix stage1, built by MSVC cl.exe and linked by MSVC link.exe."
+
+[[step]]
+id = "libxml2-ours-windows"
+variant = "release"
+systems = ["windows"]
+run = "cmake -S external/libxml2 -B build/libxml2/obj -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER={repo_root}/build/stage1/bin/clang-cl.exe -DCMAKE_CXX_COMPILER={repo_root}/build/stage1/bin/clang-cl.exe {settings} -DCMAKE_INSTALL_PREFIX={repo_root}/build/libxml2 -DCMAKE_INSTALL_LIBDIR=lib -DLIBXML2_WITH_ICONV=OFF -DLIBXML2_WITH_ICU=OFF -DLIBXML2_WITH_LZMA=OFF -DLIBXML2_WITH_ZLIB=OFF -DLIBXML2_WITH_PYTHON=OFF -DLIBXML2_WITH_PROGRAMS=OFF -DLIBXML2_WITH_TESTS=OFF -DLIBXML2_WITH_MODULES=OFF && cmake --build build/libxml2/obj && cmake --install build/libxml2/obj"
+why = "libxml2 built by our own clang-cl (stage1)."
+
+[[step]]
+id = "llvm-release-windows"
+variant = "release"
+systems = ["windows"]
+run = "cmake -S llvm -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER={repo_root}/build/stage1/bin/clang-cl.exe -DCMAKE_CXX_COMPILER={repo_root}/build/stage1/bin/clang-cl.exe -DCMAKE_LINKER={repo_root}/build/stage1/bin/lld-link.exe -DCMAKE_RC_COMPILER=rc.exe -DCMAKE_MT=mt.exe {settings} \"-DLLVM_ENABLE_PROJECTS=clang;lld\" -DLLVM_TARGETS_TO_BUILD=host -DLLVM_ENABLE_ASSERTIONS=OFF -DLLVM_ENABLE_LIBXML2=FORCE_ON -DLIBXML2_INCLUDE_DIR={repo_root}/build/libxml2/include/libxml2 -DLIBXML2_LIBRARY={repo_root}/build/libxml2/lib/libxml2s.lib -DLLVM_ENABLE_ZLIB=ON -DLLVM_ENABLE_ZSTD=ON -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_EXAMPLES=OFF -DLLVM_INCLUDE_DOCS=OFF && cmake --build build/release"
+why = "The compiler on Windows: LLVM built by stage1's clang-cl and lld-link with our libxml2; the resource and manifest compilers are the Windows SDK's rc.exe and mt.exe from the Visual Studio environment."
+
+[[step]]
+id = "cleanup-windows"
+variant = "release"
+systems = ["windows"]
+run = "cmake -E rm -rf build/stage1 build/libxml2-bootstrap"
+why = "Same as the posix cleanup: scaffolding goes only after the passport is written, so the passport records this as the last step."
+
+[[rule]]
+text = "The system compiler builds stage1; stage1 builds the release compiler; every other project is built with the release compiler. No third pass (owner, 11.11)."
+
+[[rule]]
+text = "Symbol visibility is written as default on purpose: LLVM and clang export their own symbols (plugins, libclang) and rely on default visibility; the hidden preset that other repositories use would break them. LLVM's static build has no shared libraries to restrict, so the shared linker flags are only stated, not needed."
+
+[[rule]]
+text = "libxml2 is built only here, from external/libxml2; LLVM never links the system libxml2. LIBXML2_INCLUDE_DIR and LIBXML2_LIBRARY always point into build/libxml2-bootstrap (stage1) or build/libxml2 (release)."
+
+[[rule]]
+text = "The debug variant is not built: LLVM's libraries are release-mode for both install variants."
+
+[[exception]]
+check = "passport.variant-built.debug"
+why = "The debug variant of LLVM is tens of gigabytes and hours; LLVM's libraries are release-mode for both install variants."
+decided_by = "owner"
+date = "2026-11-11"
+
+[[exception]]
+check = "passport.compiler-ours"
+why = "Steps libxml2-bootstrap and llvm-stage1 use the system compiler to bootstrap; the compiler that finally builds is stage1, then release."
+decided_by = "owner"
+date = "2026-11-11"
