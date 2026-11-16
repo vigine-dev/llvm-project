@@ -15,6 +15,7 @@ CMAKE_CXX_VISIBILITY_PRESET = "default"
 CMAKE_VISIBILITY_INLINES_HIDDEN = "ON"
 CMAKE_POSITION_INDEPENDENT_CODE = "ON"
 BUILD_SHARED_LIBS = "OFF"
+CMAKE_DISABLE_FIND_PACKAGE_PkgConfig = "ON"
 
 [settings.macos]
 CMAKE_SHARED_LINKER_FLAGS = "-Wl,-dead_strip"
@@ -138,3 +139,6 @@ check = "passport.compiler-ours"
 why = "Steps libxml2-bootstrap and llvm-stage1 use the system compiler to bootstrap; the compiler that finally builds is stage1, then release."
 decided_by = "owner"
 date = "2026-11-11"
+
+[[rule]]
+text = "No pkg-config: CMAKE_DISABLE_FIND_PACKAGE_PkgConfig is ON for every system. Our libxml2 is given by its paths (LIBXML2_INCLUDE_DIR, LIBXML2_LIBRARY), yet FindLibXml2 still asked the machine's pkg-config and wrote the system SDK's libxml2 into the cache (16.11, Mac: PC_LIBXML_INCLUDEDIR -> /Library/Developer/CommandLineTools/SDKs/MacOSX26.sdk/usr/include), which the passport then refused as a cache made on another SDK. The compiler takes nothing from the system's package lists."
