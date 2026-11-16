@@ -33,7 +33,7 @@ LLVM_PARALLEL_COMPILE_JOBS = "15"
 [settings.linux]
 CMAKE_SHARED_LINKER_FLAGS = "-Wl,--exclude-libs,ALL"
 LLVM_PARALLEL_LINK_JOBS = "1"
-LLVM_PARALLEL_COMPILE_JOBS = "3"
+LLVM_PARALLEL_COMPILE_JOBS = "4"
 
 # ---- macOS and Linux: the system compiler is /usr/bin/clang and /usr/bin/clang++ ----
 
@@ -110,7 +110,7 @@ run = "cmake -E rm -rf build/stage1 build/libxml2-bootstrap"
 why = "Same as the posix cleanup: scaffolding goes only after the passport is written, so the passport records this as the last step."
 
 [[rule]]
-text = "Job limits are stated per system and reach both LLVM steps (llvm-stage1 and llvm-release) through {settings}: one link job everywhere, because a single LLVM link needs several gigabytes (clang and lld with LTO off still peak near 3 to 8 GB) and the machines are small (Ubuntu 3 GB RAM and 4 cores, macOS 8 GB and 8 cores, Windows 31 GB and 16 logical cores). Compile jobs are the cores minus one (macOS 7, Windows 15) except Ubuntu, where 3 is the cores minus one and also what 3 GB of RAM can hold; more would be killed by the memory limit."
+text = "Job limits are stated per system and reach both LLVM steps (llvm-stage1 and llvm-release) through {settings}: one link job everywhere, because a single LLVM link needs several gigabytes (clang and lld with LTO off still peak near 3 to 8 GB) and the machines are small (Ubuntu 7.7 GiB RAM and 4 cores, macOS 8 GB and 8 cores, Windows 31 GB and 16 logical cores). Compile jobs are the cores minus one (macOS 7, Windows 15) except Ubuntu, where they are one per core (4): it is the slowest machine and has no desktop work to leave a core for, and 16.11 its compile jobs peaked near 0.6 GB each (top: three clang++ at 594-625 MB resident), so four compiles beside the one link stay inside 7.7 GiB."
 
 [[rule]]
 text = "Windows links libxml2 statically (libxml2s.lib), which needs two things every consumer must state: LIBXML_STATIC, or the headers declare the functions dllimport and nothing links; and bcrypt.lib, which the static library's random-number code calls. LLVM's own libxml2 check and the LLVM and clang programs both need them, so they are settings for the whole windows build (CMAKE_C_FLAGS, CMAKE_CXX_FLAGS, CMAKE_EXE_LINKER_FLAGS), found by the failed link of the xmlReadMemory check (__imp_xmlReadMemory, then BCryptGenRandom unresolved)."
