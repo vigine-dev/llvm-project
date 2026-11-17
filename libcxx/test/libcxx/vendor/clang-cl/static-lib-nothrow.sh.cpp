@@ -6,11 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: target={{.+}}-windows-msvc
+// REQUIRES: target={{.+}}-windows-msvc, has-filecheck
 
 // The VCRuntime library owns std::nothrow when libc++ uses its ABI. Defining
 // the object in libc++.lib as well makes whole-archive links fail with a
 // duplicate symbol.
 
-// RUN: llvm-nm --defined-only "%{lib-dir}/libc++.lib" | not grep -F '?nothrow@std@@3Unothrow_t@1@B'
-// RUN: llvm-nm --defined-only "%{lib-dir}/libc++.lib" | grep -F '?__throw_bad_alloc@std@@YAXXZ'
+// FileCheck, not grep: a Windows machine has no grep on its PATH.
+// RUN: llvm-nm --defined-only "%{lib-dir}/libc++.lib" | FileCheck %s
+
+// CHECK-NOT: ?nothrow@std@@3Unothrow_t@1@B
+// CHECK: ?__throw_bad_alloc@std@@YAXXZ
+// CHECK-NOT: ?nothrow@std@@3Unothrow_t@1@B
