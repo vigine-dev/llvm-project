@@ -816,7 +816,11 @@ typedef __char32_t char32_t;
 #  ifndef _LIBCPP_NO_AUTO_LINK
 #    if defined(_LIBCPP_ABI_MICROSOFT) && !defined(_LIBCPP_BUILDING_LIBRARY)
 #      if !defined(_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS)
-#        pragma comment(lib, "c++.lib")
+#        if defined(_DEBUG)
+#          pragma comment(lib, "c++d.lib")
+#        else
+#          pragma comment(lib, "c++.lib")
+#        endif
 #      else
 #        pragma comment(lib, "libc++.lib")
 #      endif
