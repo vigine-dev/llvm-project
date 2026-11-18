@@ -239,6 +239,16 @@ inline int remove(const wchar_t* path) {
   detail::WinHandle h(path, DELETE, FILE_FLAG_OPEN_REPARSE_POINT);
   if (!h)
     return -1;
+  // POSIX semantics: the name goes away at once although other handles keep the file open, so its folder
+  // can be removed right after; Microsoft's STL removes the same way. Systems before Windows 10 1607 refuse
+  // the extended class, and the file is then deleted when its last handle closes.
+  struct {
+    DWORD Flags;
+  } posix_info;
+  posix_info.Flags = 0x1 /* FILE_DISPOSITION_FLAG_DELETE */ | 0x2 /* FILE_DISPOSITION_FLAG_POSIX_SEMANTICS */;
+  if (SetFileInformationByHandle(h, static_cast<FILE_INFO_BY_HANDLE_CLASS>(21) /* FileDispositionInfoEx */,
+                                 &posix_info, sizeof(posix_info)))
+    return 0;
   FILE_DISPOSITION_INFO info;
   info.DeleteFile = TRUE;
   if (!SetFileInformationByHandle(h, FileDispositionInfo, &info, sizeof(info)))
@@ -246,7 +256,7 @@ inline int remove(const wchar_t* path) {
   return 0;
 }
 
-inline int truncate_handle(HANDLE h, off_t length) {
+inline int truncate_handle(HANDLE h, long long length) {
   LARGE_INTEGER size_param;
   size_param.QuadPart = length;
   if (!SetFilePointerEx(h, size_param, 0, FILE_BEGIN))
@@ -256,12 +266,15 @@ inline int truncate_handle(HANDLE h, off_t length) {
   return 0;
 }
 
-inline int ftruncate(int fd, off_t length) {
+inline int ftruncate(int fd, long long length) {
   HANDLE h = reinterpret_cast<HANDLE>(_get_osfhandle(fd));
   return truncate_handle(h, length);
 }
 
-inline int truncate(const wchar_t* path, off_t length) {
+// A file's length is 64 bits on Windows too; off_t there is a 32-bit long.
+using truncate_length = long long;
+
+inline int truncate(const wchar_t* path, truncate_length length) {
   detail::WinHandle h(path, GENERIC_WRITE, 0);
   if (!h)
     return -1;
@@ -474,6 +487,7 @@ using ::rename;
 using ::stat;
 using ::statvfs;
 using ::truncate;
+using truncate_length = ::off_t;
 
 #  define O_BINARY 0
 

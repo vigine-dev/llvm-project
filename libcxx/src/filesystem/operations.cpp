@@ -967,7 +967,7 @@ void __rename(const path& from, const path& to, error_code* ec) {
 
 void __resize_file(const path& p, uintmax_t size, error_code* ec) {
   ErrorHandler<void> err("resize_file", ec, &p);
-  if (detail::truncate(p.c_str(), static_cast< ::off_t>(size)) == -1)
+  if (detail::truncate(p.c_str(), static_cast<detail::truncate_length>(size)) == -1)
     return err.report(detail::get_last_error());
 }
 
