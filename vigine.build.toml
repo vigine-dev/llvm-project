@@ -106,7 +106,8 @@ id = "cleanup"
 variant = "release"
 systems = ["macos", "linux"]
 run = "cmake -E rm -rf build/stage1 build/libxml2-bootstrap build/runtimes build/runtimes-first"
-why = "Stage1, the bootstrap libxml2 and the runtimes' build folders are scaffolding. They are removed only after the passport is written, so the passport records this as the last step and everything it proves was still on disk when it was measured."
+keeps = ["build/stage1/bin", "build/stage1/lib/clang"]
+why = "Stage1, the bootstrap libxml2 and the runtimes' build folders are scaffolding. They are removed only after the passport is written, so the passport records this as the last step and everything it proves was still on disk when it was measured. Stage1's compiler itself (bin and its resource headers) is kept: a later change of our C++ library alone then rebuilds the library with it instead of rebuilding stage1 from nothing."
 
 # ---- Windows: the system compiler is MSVC cl.exe (found through vcvars64.bat); stage1 is clang-cl with MSVC link.exe ----
 
@@ -157,6 +158,7 @@ id = "cleanup-windows"
 variant = "release"
 systems = ["windows"]
 run = "cmake -E rm -rf build/stage1 build/libxml2-bootstrap build/runtimes build/runtimes-first"
+keeps = ["build/stage1/bin", "build/stage1/lib/clang"]
 why = "Same as the posix cleanup: scaffolding goes only after the passport is written, so the passport records this as the last step."
 
 [[rule]]
